@@ -4,7 +4,7 @@
  * Description: Adds settings to the Image block to display different images depending on the width of the screen.
  * Requires at least: 6.9
  * Requires PHP: 8.0
- * Version: 1.6.0
+ * Version: 1.6.1
  * Author: Aki Hamano
  * Author URI: https://github.com/t-hamano
  * License: GPL2 or later
@@ -66,7 +66,7 @@ function enable_responsive_image_render_block_image( $block_content, $block ) {
 	$filtered_sources = array_filter(
 		$block['attrs']['enableResponsiveImageSources'],
 		function ( $source ) {
-			return isset( $source['srcset'] ) && isset( $source['mediaType'] ) && isset( $source['mediaValue'] );
+			return isset( $source['srcset'], $source['mediaType'], $source['mediaValue'] );
 		}
 	);
 
@@ -99,7 +99,7 @@ function enable_responsive_image_render_block_image( $block_content, $block ) {
 		$source_tags .= sprintf(
 			'<source srcset="%1$s" media="(%2$s: %3$dpx)"/>',
 			esc_url( $source['srcset'] ),
-			$source['mediaType'],
+			$media_type,
 			$source['mediaValue'] ? (int) $source['mediaValue'] : $default_media_value,
 		);
 	}
