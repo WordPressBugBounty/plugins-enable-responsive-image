@@ -1,21 +1,24 @@
 /**
+ * External dependencies
+ */
+import type { Ref } from 'react';
+
+/**
  * WordPress dependencies
  */
 import { useState } from '@wordpress/element';
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import {
 	Button,
 	DropZone,
-	ExternalLink,
 	RangeControl,
 	Spinner,
 	SelectControl,
-	__experimentalHStack as HStack,
-	__experimentalVStack as VStack,
 	__experimentalToggleGroupControl as ToggleGroupControl,
 	__experimentalToggleGroupControlOption as ToggleGroupControlOption,
 } from '@wordpress/components';
-
+import { Stack, Link, VisuallyHidden } from '@wordpress/ui';
+import { useInstanceId } from '@wordpress/compose';
 import { MediaUpload, store as blockEditorStore } from '@wordpress/block-editor';
 import { useDispatch, useSelect } from '@wordpress/data';
 import { store as coreStore } from '@wordpress/core-data';
@@ -31,9 +34,13 @@ import { DEFAULT_MEDIA_VALUE, MEDIA_TYPES, MIN_MEDIA_VALUE, MAX_MEDIA_VALUE } fr
 
 type Props = {
 	source?: Source;
+	index?: number;
 	disableMoveUp: boolean;
 	disableMoveDown: boolean;
 	disableActions?: boolean;
+	toggleRef?: Ref< HTMLButtonElement >;
+	moveUpRef?: Ref< HTMLButtonElement >;
+	moveDownRef?: Ref< HTMLButtonElement >;
 	onChange: ( source: Source ) => void;
 	onRemove: () => void;
 	onChangeOrder?: ( direction: number ) => void;
@@ -48,9 +55,13 @@ export default function SourceEditor( {
 		mediaType: undefined,
 		mediaValue: undefined,
 	},
+	index,
 	disableMoveUp = false,
 	disableMoveDown = false,
 	disableActions = false,
+	toggleRef,
+	moveUpRef,
+	moveDownRef,
 	onChangeOrder,
 	onChange,
 	onRemove,
@@ -86,6 +97,10 @@ export default function SourceEditor( {
 	const { createErrorNotice, removeAllNotices } = useDispatch( noticesStore );
 
 	const [ isLoading, setIsLoading ] = useState( false );
+
+	const instanceId = useInstanceId( SourceEditor );
+	const moveUpDescriptionId = `enable-responsive-image__mover-description-up-${ instanceId }`;
+	const moveDownDescriptionId = `enable-responsive-image__mover-description-down-${ instanceId }`;
 
 	const imageSizeOptions = imageSizes
 		.filter( ( { slug }: { slug: string } ) => {
@@ -164,8 +179,8 @@ export default function SourceEditor( {
 	}
 
 	return (
-		<VStack spacing={ 4 }>
-			<VStack spacing={ 2 }>
+		<Stack direction="column" gap="lg">
+			<Stack direction="column" gap="sm">
 				<MediaUpload
 					onSelect={ onSelectImage }
 					allowedTypes={ [ 'image' ] }
@@ -173,6 +188,7 @@ export default function SourceEditor( {
 					render={ ( { open } ) => (
 						<div className="enable-responsive-image__container">
 							<Button
+								ref={ toggleRef }
 								className={
 									! id ? 'enable-responsive-image__toggle' : 'enable-responsive-image__preview'
 								}
@@ -191,30 +207,90 @@ export default function SourceEditor( {
 									__( 'Set image source', 'enable-responsive-image' )
 								) }
 							</Button>
-							<HStack className="enable-responsive-image__movers" expanded={ false }>
+							<Stack
+								align="center"
+								justify="space-between"
+								gap="sm"
+								className="enable-responsive-image__movers"
+							>
 								{ ! ( disableMoveUp && disableMoveDown ) && (
 									<>
 										<Button
+											ref={ moveUpRef }
 											className="enable-responsive-image__mover"
 											label={ __( 'Move up', 'enable-responsive-image' ) }
 											icon={ chevronUp }
 											size="small"
 											disabled={ disableMoveUp }
+											aria-describedby={ moveUpDescriptionId }
 											onClick={ () => onChangeOrder?.( -1 ) }
+											accessibleWhenDisabled
 										/>
+										{ index !== undefined && (
+											<VisuallyHidden id={ moveUpDescriptionId }>
+												{ disableMoveUp
+													? sprintf(
+															/* translators: %d: Image source number. */
+															__(
+																'Image source %d is at the beginning of the content and can’t be moved up',
+																'enable-responsive-image'
+															),
+															index + 1
+													  )
+													: sprintf(
+															/* translators: 1: Current image source number. 2: New image source number. */
+															__(
+																'Move image source %1$d to position %2$d',
+																'enable-responsive-image'
+															),
+															index + 1,
+															index
+													  ) }
+											</VisuallyHidden>
+										) }
 										<Button
+											ref={ moveDownRef }
 											className="enable-responsive-image__mover"
 											label={ __( 'Move down', 'enable-responsive-image' ) }
 											icon={ chevronDown }
 											size="small"
 											disabled={ disableMoveDown }
+											aria-describedby={ moveDownDescriptionId }
 											onClick={ () => onChangeOrder?.( 1 ) }
+											accessibleWhenDisabled
 										/>
+										{ index !== undefined && (
+											<VisuallyHidden id={ moveDownDescriptionId }>
+												{ disableMoveDown
+													? sprintf(
+															/* translators: %d: Image source number. */
+															__(
+																'Image source %d is at the end of the content and can’t be moved down',
+																'enable-responsive-image'
+															),
+															index + 1
+													  )
+													: sprintf(
+															/* translators: 1: Current image source number. 2: New image source number. */
+															__(
+																'Move image source %1$d to position %2$d',
+																'enable-responsive-image'
+															),
+															index + 1,
+															index + 2
+													  ) }
+											</VisuallyHidden>
+										) }
 									</>
 								) }
-							</HStack>
+							</Stack>
 							{ ! disableActions && (
-								<HStack className="enable-responsive-image__actions">
+								<Stack
+									align="center"
+									justify="space-between"
+									gap="sm"
+									className="enable-responsive-image__actions"
+								>
 									<Button
 										className="enable-responsive-image__action"
 										onClick={ open }
@@ -232,22 +308,21 @@ export default function SourceEditor( {
 									>
 										{ __( 'Remove', 'enable-responsive-image' ) }
 									</Button>
-								</HStack>
+								</Stack>
 							) }
 							<DropZone onFilesDrop={ onDropFiles } />
 						</div>
 					) }
 				/>
 				{ !! id && srcset && (
-					<ExternalLink className="enable-responsive-image__url" href={ srcset }>
+					<Link className="enable-responsive-image__url" href={ srcset } openInNewTab>
 						{ srcset }
-					</ExternalLink>
+					</Link>
 				) }
-			</VStack>
+			</Stack>
 			{ !! id && srcset && (
 				<>
 					<ToggleGroupControl
-						__nextHasNoMarginBottom
 						isBlock
 						label={ __( 'Media query type', 'enable-responsive-image' ) }
 						onChange={ onChangeMediaType }
@@ -259,7 +334,6 @@ export default function SourceEditor( {
 						) ) }
 					</ToggleGroupControl>
 					<RangeControl
-						__nextHasNoMarginBottom
 						label={ __( 'Media query value (px)', 'enable-responsive-image' ) }
 						value={ mediaValue || DEFAULT_MEDIA_VALUE }
 						onChange={ onChangeMediaValue }
@@ -270,7 +344,6 @@ export default function SourceEditor( {
 						__next40pxDefaultSize
 					/>
 					<SelectControl
-						__nextHasNoMarginBottom
 						label={ __( 'Resolution', 'enable-responsive-image' ) }
 						value={ srcsetSlug }
 						options={ imageSizeOptions }
@@ -280,6 +353,6 @@ export default function SourceEditor( {
 					/>
 				</>
 			) }
-		</VStack>
+		</Stack>
 	);
 }

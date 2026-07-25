@@ -1,13 +1,14 @@
 /**
  * WordPress dependencies
  */
+import { useRef } from '@wordpress/element';
 import { __, sprintf } from '@wordpress/i18n';
 import {
 	Button,
-	Notice,
 	__experimentalToolsPanel as ToolsPanel,
 	__experimentalToolsPanelItem as ToolsPanelItem,
 } from '@wordpress/components';
+import { Notice } from '@wordpress/ui';
 import { MediaUploadCheck } from '@wordpress/block-editor';
 import { useViewportMatch } from '@wordpress/compose';
 import type { BlockEditProps } from '@wordpress/blocks';
@@ -22,6 +23,11 @@ import { MAX_SOURCES } from './constants';
 export default function ImageList( props: BlockEditProps< BlockAttributes > ) {
 	const { attributes, setAttributes } = props;
 	const { enableResponsiveImageSources: sources } = attributes;
+
+	const toggleRefs = useRef< ( HTMLButtonElement | null )[] >( [] );
+	const moveUpRefs = useRef< ( HTMLButtonElement | null )[] >( [] );
+	const moveDownRefs = useRef< ( HTMLButtonElement | null )[] >( [] );
+	const addSourceRef = useRef< HTMLButtonElement | null >( null );
 
 	function onChange( newSource: Source, index: number ) {
 		const newSources = [ ...sources ];
@@ -47,12 +53,33 @@ export default function ImageList( props: BlockEditProps< BlockAttributes > ) {
 		const movedSource = newSources.splice( index, 1 )[ 0 ];
 		newSources.splice( newIndex, 0, movedSource );
 		setAttributes( { enableResponsiveImageSources: newSources } );
+
+		// Move focus to the mover button at the new position so it follows the
+		// moved source, after the reorder has rendered.
+		window.requestAnimationFrame( () => {
+			const refs = direction < 0 ? moveUpRefs : moveDownRefs;
+			refs.current[ newIndex ]?.focus();
+		} );
 	}
 
-	function onRemoveSource( index: number ) {
+	function onRemoveSource( index: number, shouldFocus = false ) {
 		const newSources = [ ...sources ];
 		newSources.splice( index, 1 );
 		setAttributes( { enableResponsiveImageSources: newSources } );
+
+		if ( ! shouldFocus ) {
+			return;
+		}
+
+		// Move focus to the previous source, falling back to the next one, or to
+		// the add button when no source is left, after the removal has rendered.
+		window.requestAnimationFrame( () => {
+			if ( newSources.length === 0 ) {
+				addSourceRef.current?.focus();
+				return;
+			}
+			toggleRefs.current[ index > 0 ? index - 1 : 0 ]?.focus();
+		} );
 	}
 	const dropdownMenuProps = ! useViewportMatch( 'medium', '<' )
 		? {
@@ -77,16 +104,14 @@ export default function ImageList( props: BlockEditProps< BlockAttributes > ) {
 		>
 			<MediaUploadCheck
 				fallback={
-					<Notice
-						className="enable-responsive-image__notice"
-						status="warning"
-						isDismissible={ false }
-					>
-						{ __(
-							'To edit the image, you need permission to upload media.',
-							'enable-responsive-image'
-						) }
-					</Notice>
+					<Notice.Root className="enable-responsive-image__notice" intent="warning">
+						<Notice.Description>
+							{ __(
+								'To edit the image, you need permission to upload media.',
+								'enable-responsive-image'
+							) }
+						</Notice.Description>
+					</Notice.Root>
 				}
 			>
 				{ sources.length > 0 &&
@@ -113,18 +138,29 @@ export default function ImageList( props: BlockEditProps< BlockAttributes > ) {
 								</legend>
 								<SourceEditor
 									{ ...props }
+									index={ index }
 									disableMoveUp={ index === 0 }
 									disableMoveDown={ index === sources.length - 1 }
+									toggleRef={ ( el ) => {
+										toggleRefs.current[ index ] = el;
+									} }
+									moveUpRef={ ( el ) => {
+										moveUpRefs.current[ index ] = el;
+									} }
+									moveDownRef={ ( el ) => {
+										moveDownRefs.current[ index ] = el;
+									} }
 									source={ source }
 									onChangeOrder={ ( direction ) => onChangeOrder( direction, index ) }
 									onChange={ ( newSource ) => onChange( newSource, index ) }
-									onRemove={ () => onRemoveSource( index ) }
+									onRemove={ () => onRemoveSource( index, true ) }
 								/>
 								{ index < sources.length - 1 && <hr /> }
 							</fieldset>
 						</ToolsPanelItem>
 					) ) }
 				<Button
+					ref={ addSourceRef }
 					variant="primary"
 					className="enable-responsive-image__add-source"
 					disabled={ sources.length >= MAX_SOURCES }
